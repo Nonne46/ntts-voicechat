@@ -1,4 +1,4 @@
-package com.example.examplemod;
+package com.ntts;
 
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
@@ -9,24 +9,22 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-@Mod(ExampleMod.MOD_ID)
-public class ExampleMod {
-
-    public static final String MOD_ID = "example_mod";
+@Mod(nttsMod.MOD_ID)
+public class nttsMod {
+    public static final String MOD_ID = "ntts";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public ExampleMod() {
+    public nttsMod() {
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
         MinecraftForge.EVENT_BUS.register(this);
     }
 
     private void setup(FMLCommonSetupEvent event) {
-        LOGGER.info("Setting up example mod");
+        LOGGER.info("Setting up ntts mod");
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting");
+        LOGGER.info("ntts mod server starting");
     }
-
 }

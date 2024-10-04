@@ -4,12 +4,12 @@ license="MIT"
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
-displayName="Example Mod"
+displayName="NTTS Plugin"
 logoFile="icon.png"
 credits=""
-authors="Example Author"
+authors="nny"
 description='''
-A Simple Voice Chat API mod example
+A plugin integration with TTS service /N/TTS
 '''
 [[dependencies.${mod_id}]]
     modId="forge"
