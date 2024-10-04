@@ -60,6 +60,7 @@ public class nttsPlugin implements VoicechatPlugin {
 
         loadConfig();
         nttsClient = new nttsClient(token);
+        fetchSpeakers();
     }
 
     @SubscribeEvent
