@@ -9,7 +9,7 @@ The project supports Fabric and Forge. NTTS is installed on the server, while Si
 ## Features
 
 - Global or proximity-based speech playback.
-- Fixed or random voice assignment.
+- Default or random initial voice assignment.
 - Player-selectable voices and effects.
 - Server-wide default voice and effect.
 - Operator commands for runtime and player management.
@@ -44,7 +44,7 @@ Tokens are available from the [/N/TTS Boosty page](https://boosty.to/ntts). Pref
 enabled=true
 token=
 mode=global
-voice_mode=static
+voice_mode=random
 default_speaker=narrator_d3
 effect=
 allow_player_effects=true
@@ -53,8 +53,10 @@ max_text_length=300
 
 - `mode=global` — every player hears generated speech.
 - `mode=local` — speech is audible near the sender.
-- `voice_mode=static` — use player selections and the default voice.
-- `voice_mode=random` — assign voices randomly until NTTS is reloaded.
+- `voice_mode=static` — give unconfigured players the default voice.
+- `voice_mode=random` — give unconfigured players a random voice until NTTS is reloaded.
+
+A voice chosen with `/set_speaker` always takes priority over the initial assignment.
 
 ## Commands
 

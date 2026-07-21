@@ -470,21 +470,26 @@ public final class NttsClient {
         }
 
         private String safeSummary(long usedCharacters) {
-            String maximum = charactersPerRequest > 0 ? Integer.toString(charactersPerRequest) : "unknown";
+            String maximum = charactersPerRequest > 0
+                    ? charactersPerRequest + " characters per message"
+                    : "message limit unknown";
+            String expiration = "unknown".equals(expiresDisplay)
+                    ? ""
+                    : ", expires " + expiresDisplay;
             if (type == 1) {
-                return "limits=rps:" + decimal(requestsPerSecond)
-                        + ",maxChars:" + maximum + ",expires:" + expiresDisplay;
+                return maximum + ", " + decimal(requestsPerSecond)
+                        + (requestsPerSecond == 1D ? " request/second" : " requests/second")
+                        + expiration;
             }
             if (type == 2) {
-                return "limits=delaySeconds:" + decimal(delayPerRequest)
-                        + ",maxChars:" + maximum + ",expires:" + expiresDisplay;
+                return maximum + ", " + decimal(delayPerRequest) + " seconds between requests" + expiration;
             }
             if (type == 3) {
                 long remaining = Math.max(0L, characterQuota - usedCharacters);
-                return "limits=quotaRemaining:" + remaining + "/" + characterQuota
-                        + ",maxChars:" + maximum + ",expires:" + expiresDisplay;
+                return maximum + ", " + remaining + " of " + characterQuota
+                        + " quota characters remaining" + expiration;
             }
-            return "limits=unknown,maxChars:" + maximum + ",expires:" + expiresDisplay;
+            return "Not available yet";
         }
 
         private static String decimal(double value) {

@@ -1,7 +1,9 @@
 package com.ntts.fabric;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.ntts.common.NttsPluginCore;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -41,17 +43,42 @@ public final class FabricNttsPlugin extends NttsPluginCore {
         return playerIds;
     }
 
+    private static void sendLines(CommandSourceStack source, List<String> lines) {
+        for (String line : lines) {
+            source.sendSystemMessage(Component.literal(line));
+        }
+    }
+
+    private void addSpeakerSuggestions(SuggestionsBuilder builder) {
+        for (String speaker : getSpeakerSuggestions(builder.getRemaining())) {
+            String label = getSpeakerSuggestionLabel(speaker);
+            if (speaker.equals(label)) {
+                builder.suggest(speaker);
+            } else {
+                builder.suggest(speaker, new LiteralMessage(label));
+            }
+        }
+    }
+
+    private void addConfigurationValueSuggestions(String key, SuggestionsBuilder builder) {
+        if ("default_speaker".equalsIgnoreCase(key.trim())) {
+            addSpeakerSuggestions(builder);
+            return;
+        }
+        getConfigurationValueSuggestions(key, builder.getRemaining()).forEach(builder::suggest);
+    }
+
     private void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("ntts")
                         .requires(FabricCommandPermissions::isOperator)
                         .executes(context -> {
-                            context.getSource().sendSystemMessage(Component.literal(getStatusLine()));
+                            sendLines(context.getSource(), getOverviewLines());
                             return 1;
                         })
                         .then(Commands.literal("status")
                                 .executes(context -> {
-                                    context.getSource().sendSystemMessage(Component.literal(getStatusLine()));
+                                    sendLines(context.getSource(), getStatusLines());
                                     return 1;
                                 }))
                         .then(Commands.literal("enable")
@@ -85,8 +112,7 @@ public final class FabricNttsPlugin extends NttsPluginCore {
                                 }))
                         .then(Commands.literal("help")
                                 .executes(context -> {
-                                    context.getSource().sendSystemMessage(Component.literal(
-                                            "/ntts status|enable|disable|reload|get|set|reset|test|say|player|queue clear"));
+                                    sendLines(context.getSource(), getHelpLines());
                                     return 1;
                                 }))
                         .then(Commands.literal("get")
@@ -115,12 +141,12 @@ public final class FabricNttsPlugin extends NttsPluginCore {
                                                     .forEach(builder::suggest);
                                             return builder.buildFuture();
                                         })
-                                        .then(Commands.argument("value", StringArgumentType.string())
+                                        .then(Commands.argument("value", StringArgumentType.word())
                                                 .suggests((context, builder) -> {
-                                                    getConfigurationValueSuggestions(
+                                                    addConfigurationValueSuggestions(
                                                             StringArgumentType.getString(context, "key"),
-                                                            builder.getRemaining()
-                                                    ).forEach(builder::suggest);
+                                                            builder
+                                                    );
                                                     return builder.buildFuture();
                                                 })
                                                 .executes(context -> {
@@ -162,8 +188,9 @@ public final class FabricNttsPlugin extends NttsPluginCore {
                                                             "target"
                                                     );
                                                     context.getSource().sendSystemMessage(Component.literal(
-                                                            target.getName().getString() + " "
-                                                                    + getPlayerStateLine(target.getUUID())));
+                                                            "NTTS player - " + target.getName().getString()));
+                                                    context.getSource().sendSystemMessage(Component.literal(
+                                                            getPlayerStateLine(target.getUUID())));
                                                     return 1;
                                                 })))
                                 .then(Commands.literal("voice")
@@ -171,11 +198,10 @@ public final class FabricNttsPlugin extends NttsPluginCore {
                                                 .then(Commands.argument("targets", EntityArgument.players())
                                                         .then(Commands.argument(
                                                                         "speaker",
-                                                                        StringArgumentType.string()
+                                                                        StringArgumentType.word()
                                                                 )
                                                                 .suggests((context, builder) -> {
-                                                                    getSpeakerSuggestions(builder.getRemaining())
-                                                                            .forEach(builder::suggest);
+                                                                    addSpeakerSuggestions(builder);
                                                                     return builder.buildFuture();
                                                                 })
                                                                 .executes(context -> {
@@ -334,9 +360,9 @@ public final class FabricNttsPlugin extends NttsPluginCore {
         );
         dispatcher.register(
                 Commands.literal("set_speaker")
-                        .then(Commands.argument("speakerID", StringArgumentType.string())
+                        .then(Commands.argument("speakerID", StringArgumentType.word())
                                 .suggests((context, builder) -> {
-                                    getSpeakerSuggestions(builder.getRemaining()).forEach(builder::suggest);
+                                    addSpeakerSuggestions(builder);
                                     return builder.buildFuture();
                                 })
                                 .executes(context -> {
@@ -359,7 +385,7 @@ public final class FabricNttsPlugin extends NttsPluginCore {
         );
         dispatcher.register(
                 Commands.literal("set_effect")
-                        .then(Commands.argument("effect", StringArgumentType.string())
+                        .then(Commands.argument("effect", StringArgumentType.word())
                                 .suggests((context, builder) -> {
                                     getEffectSuggestions(builder.getRemaining()).forEach(builder::suggest);
                                     return builder.buildFuture();

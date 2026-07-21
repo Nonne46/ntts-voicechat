@@ -57,6 +57,8 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
     private static final int DEFAULT_MAXIMUM_TEXT_LENGTH = 300;
     private static final int MAXIMUM_CONFIGURED_TEXT_LENGTH = 2_000;
     private static final int QUEUE_CAPACITY = 32;
+    private static final int NO_FUZZY_MATCH = Integer.MAX_VALUE;
+    private static final int SEARCH_TERM_PENALTY = 5;
     private static final List<String> CONFIGURATION_KEYS = List.of(
             "enabled",
             "mode",
@@ -104,12 +106,13 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
 
     private volatile List<String> speakers = Collections.emptyList();
     private volatile List<SuggestionEntry> speakerSuggestionEntries = Collections.emptyList();
+    private volatile Map<String, String> speakerSuggestionLabels = Collections.emptyMap();
     private volatile List<String> effects = Collections.emptyList();
     private volatile VoicechatApi voicechatApi;
     private volatile VoicechatServerApi voicechatServerApi;
     private volatile NttsClient nttsClient = new NttsClient("", logger);
     private volatile String ttsMode = "global";
-    private volatile String voiceMode = "static";
+    private volatile String voiceMode = "random";
     private volatile String defaultSpeaker = DEFAULT_SPEAKER;
     private volatile String defaultEffect = "";
     private volatile String lastFailure = "none";
@@ -212,6 +215,10 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         return fuzzySuggestions(speakerSuggestionEntries, query);
     }
 
+    protected final String getSpeakerSuggestionLabel(String speakerId) {
+        return speakerSuggestionLabels.getOrDefault(speakerId, speakerId);
+    }
+
     protected final List<String> getEffectSuggestions(String query) {
         List<SuggestionEntry> availableEffects = new ArrayList<>(effects.size() + 1);
         availableEffects.add(SuggestionEntry.fromValue("none"));
@@ -245,8 +252,8 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
                 entries.add(SuggestionEntry.fromValue("local"));
                 break;
             case "voice_mode":
-                entries.add(SuggestionEntry.fromValue("static"));
                 entries.add(SuggestionEntry.fromValue("random"));
+                entries.add(SuggestionEntry.fromValue("static"));
                 break;
             case "default_speaker":
                 return getSpeakerSuggestions(query);
@@ -384,12 +391,11 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         String effect = playerEffectsEnabled
                 ? effectData.getOrDefault(playerId, defaultEffect.isEmpty() ? "none" : defaultEffect)
                 : defaultEffect.isEmpty() ? "none" : defaultEffect;
-        return "effectiveVoice=" + selectSpeaker(playerId)
-                + " personalVoice=" + personal
-                + " adminOverride=" + override
-                + " voiceLocked=" + speakerLocks.contains(playerId)
-                + " effect=" + effect
-                + " playerEffectsAllowed=" + playerEffectsEnabled;
+        return "voice: " + selectSpeaker(playerId)
+                + " | personal: " + personal
+                + " | operator override: " + override
+                + " | locked: " + yesNo(speakerLocks.contains(playerId))
+                + " | effect: " + effect;
     }
 
     protected final boolean arePlayerEffectsEnabled() {
@@ -416,8 +422,12 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         if (adminSpeaker != null) {
             return adminSpeaker;
         }
+        String personalSpeaker = speakerData.get(playerId);
+        if (personalSpeaker != null) {
+            return personalSpeaker;
+        }
         if (!"random".equals(voiceMode)) {
-            return speakerData.getOrDefault(playerId, defaultSpeaker);
+            return defaultSpeaker;
         }
         String assigned = randomSpeakerData.get(playerId);
         if (assigned != null) {
@@ -447,28 +457,114 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         return selected;
     }
 
-    protected final String getStatusLine() {
+    protected final List<String> getOverviewLines() {
+        return List.of(
+                "NTTS - " + getServiceDisplayName(),
+                "Playback: " + titleCase(ttsMode)
+                        + " | Initial voice: " + titleCase(voiceMode)
+                        + " | Player effects: " + (playerEffectsEnabled ? "On" : "Off"),
+                "Use /ntts help for commands or /ntts status for diagnostics."
+        );
+    }
+
+    protected final List<String> getHelpLines() {
+        return List.of(
+                "NTTS operator commands",
+                "Service: /ntts status, /ntts enable, /ntts disable, /ntts reload",
+                "Configuration:",
+                "  /ntts get <key>",
+                "  /ntts set <key> <value>",
+                "  /ntts reset <key|all>",
+                "Speech: /ntts test, /ntts say <message>",
+                "Players:",
+                "  /ntts player inspect <player>",
+                "  /ntts player voice set <players> <voice>",
+                "  /ntts player voice reset|lock|unlock <players>",
+                "Queue: /ntts queue clear",
+                "Player commands: /set_speaker <voice>, /set_effect <effect|none>"
+        );
+    }
+
+    protected final List<String> getStatusLines() {
         NttsClient.ProviderState providerState = nttsClient.getState();
-        long completed = completedRequests.get();
+        int waiting = synthesisExecutor.getQueue().size();
+        int active = synthesisExecutor.getActiveCount();
         long timed = timedRequests.get();
         long averageLatency = timed == 0L ? 0L : totalLatencyMillis.get() / timed;
-        return "NTTS enabled=" + runtimeEnabled
-                + " operational=" + (runtimeEnabled && serverReady && providerState == NttsClient.ProviderState.READY)
-                + " provider=" + providerState.displayName()
-                + " mode=" + ttsMode
-                + " voiceMode=" + voiceMode
-                + " playerEffects=" + playerEffectsEnabled
-                + " queue=" + synthesisExecutor.getQueue().size() + "/" + QUEUE_CAPACITY
-                + " active=" + synthesisExecutor.getActiveCount()
-                + " accepted=" + acceptedRequests.get()
-                + " completed=" + completed
-                + " failed=" + failedRequests.get()
-                + " dropped=" + droppedRequests.get()
-                + " rejected=" + rejectedRequests.get()
-                + " cacheHits=" + cacheHits.get()
-                + " avgLatencyMs=" + averageLatency
-                + " lastFailure=" + lastFailure
-                + " " + nttsClient.getSafeLimitSummary();
+        List<String> lines = new ArrayList<>();
+        lines.add("NTTS status");
+        lines.add("Service: " + getServiceDisplayName());
+        lines.add("Provider: " + providerDisplayName(providerState));
+        lines.add("Playback: " + titleCase(ttsMode)
+                + " | Initial voice: " + titleCase(voiceMode)
+                + " (default: " + defaultSpeaker + ")");
+        lines.add("Effects: " + (playerEffectsEnabled ? "Player choice enabled" : "Server default only")
+                + " (default: " + (defaultEffect.isEmpty() ? "none" : defaultEffect) + ")");
+        lines.add(waiting == 0 && active == 0
+                ? "Queue: Idle"
+                : "Queue: " + waiting + " waiting, " + active + " active (capacity " + QUEUE_CAPACITY + ")");
+        lines.add("Requests: " + completedRequests.get() + " completed, "
+                + failedRequests.get() + " failed, "
+                + droppedRequests.get() + " dropped, "
+                + rejectedRequests.get() + " rejected");
+        if (timed > 0L) {
+            lines.add("Performance: " + averageLatency + " ms average, " + cacheHits.get() + " cache hits");
+        }
+        lines.add("Limits: " + nttsClient.getSafeLimitSummary());
+        if (!"none".equals(lastFailure)) {
+            lines.add("Last issue: " + titleCase(lastFailure));
+        }
+        return Collections.unmodifiableList(lines);
+    }
+
+    private String getServiceDisplayName() {
+        NttsClient.ProviderState providerState = nttsClient.getState();
+        if (providerState == NttsClient.ProviderState.UNCONFIGURED) {
+            return "Setup required (token not configured)";
+        }
+        if (providerState == NttsClient.ProviderState.INVALID) {
+            return "Unavailable (token invalid or expired)";
+        }
+        if (!runtimeEnabled) {
+            return "Disabled";
+        }
+        if (!serverReady) {
+            return "Starting (waiting for Simple Voice Chat)";
+        }
+        return providerState == NttsClient.ProviderState.READY
+                ? "Ready"
+                : providerDisplayName(providerState);
+    }
+
+    private static String providerDisplayName(NttsClient.ProviderState state) {
+        switch (state) {
+            case UNCONFIGURED:
+                return "Token not configured";
+            case READY:
+                return "Connected";
+            case INVALID:
+                return "Token invalid or expired";
+            case RATE_LIMITED:
+                return "Rate limited (waiting to retry)";
+            case QUOTA_EXHAUSTED:
+                return "Quota exhausted";
+            case UNAVAILABLE:
+                return "Temporarily unavailable";
+            default:
+                return titleCase(state.displayName());
+        }
+    }
+
+    private static String titleCase(String value) {
+        if (value == null || value.isBlank()) {
+            return "Unknown";
+        }
+        String readable = value.trim().replace('_', ' ').replace('-', ' ');
+        return Character.toUpperCase(readable.charAt(0)) + readable.substring(1);
+    }
+
+    private static String yesNo(boolean value) {
+        return value ? "yes" : "no";
     }
 
     protected final boolean setRuntimeEnabled(boolean enabled) {
@@ -499,7 +595,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
                 throw new IllegalArgumentException("mode must be 'global' or 'local'");
             }
 
-            String configuredVoiceMode = config.getProperty("voice_mode", "static").trim();
+            String configuredVoiceMode = config.getProperty("voice_mode", "random").trim();
             if (!"static".equals(configuredVoiceMode) && !"random".equals(configuredVoiceMode)) {
                 throw new IllegalArgumentException("voice_mode must be 'static' or 'random'");
             }
@@ -544,6 +640,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
             audioCache.clear();
             speakers = Collections.emptyList();
             speakerSuggestionEntries = Collections.emptyList();
+            speakerSuggestionLabels = Collections.emptyMap();
             effects = Collections.emptyList();
             if (replacementClient.canRequest()) {
                 submitBackground(() -> {
@@ -819,6 +916,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
 
     private void fetchCatalogs(NttsClient client) {
         Map<String, LinkedHashSet<String>> speakerSearchTerms = new LinkedHashMap<>();
+        Map<String, LinkedHashSet<String>> speakerVoiceNames = new LinkedHashMap<>();
         for (NttsClient.Voice voice : client.getVoices()) {
             for (String speaker : voice.getSpeakers()) {
                 LinkedHashSet<String> terms = speakerSearchTerms.computeIfAbsent(
@@ -827,16 +925,28 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
                 );
                 addTermAndParts(terms, voice.getName());
                 addTermAndParts(terms, speaker);
+                if (voice.getName() != null && !voice.getName().isBlank()) {
+                    speakerVoiceNames.computeIfAbsent(speaker, ignored -> new LinkedHashSet<>())
+                            .add(voice.getName().trim());
+                }
             }
         }
         List<String> loadedSpeakers = new ArrayList<>(speakerSearchTerms.keySet());
         Collections.sort(loadedSpeakers);
         List<SuggestionEntry> loadedSpeakerSuggestions = new ArrayList<>(loadedSpeakers.size());
+        Map<String, String> loadedSpeakerLabels = new LinkedHashMap<>();
         for (String speaker : loadedSpeakers) {
             loadedSpeakerSuggestions.add(new SuggestionEntry(
                     speaker,
                     new ArrayList<>(speakerSearchTerms.get(speaker))
             ));
+            Set<String> voiceNames = speakerVoiceNames.get(speaker);
+            loadedSpeakerLabels.put(
+                    speaker,
+                    voiceNames == null || voiceNames.isEmpty()
+                            ? speaker
+                            : String.join(", ", voiceNames)
+            );
         }
 
         List<String> loadedEffects = new ArrayList<>(client.getEffects());
@@ -846,6 +956,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         }
         speakers = Collections.unmodifiableList(loadedSpeakers);
         speakerSuggestionEntries = Collections.unmodifiableList(loadedSpeakerSuggestions);
+        speakerSuggestionLabels = Collections.unmodifiableMap(loadedSpeakerLabels);
         effects = Collections.unmodifiableList(loadedEffects);
         if (!defaultEffect.isEmpty() && !loadedEffects.contains(defaultEffect)) {
             logger.warn("Configured /N/TTS effect '{}' is unavailable; using no effect", defaultEffect);
@@ -873,9 +984,17 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
 
     private static List<String> fuzzySuggestions(List<SuggestionEntry> values, String query) {
         String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-        List<SuggestionEntry> ranked = new ArrayList<>(values);
+        List<SuggestionEntry> ranked = new ArrayList<>();
+        Map<SuggestionEntry, Integer> scores = new HashMap<>();
+        for (SuggestionEntry value : values) {
+            int score = needle.isEmpty() ? 0 : value.score(needle);
+            if (score != NO_FUZZY_MATCH) {
+                ranked.add(value);
+                scores.put(value, score);
+            }
+        }
         ranked.sort((left, right) -> {
-            int scoreComparison = Integer.compare(left.score(needle), right.score(needle));
+            int scoreComparison = Integer.compare(scores.get(left), scores.get(right));
             return scoreComparison != 0
                     ? scoreComparison
                     : left.value.compareToIgnoreCase(right.value);
@@ -892,31 +1011,35 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         if (needle.isEmpty()) {
             return 0;
         }
-        String haystack = candidate.toLowerCase(Locale.ROOT);
-        if (haystack.startsWith(needle)) {
+        String haystack = candidate.trim().toLowerCase(Locale.ROOT);
+        if (haystack.equals(needle)) {
             return 0;
+        }
+        if (haystack.startsWith(needle)) {
+            return 10 + Math.min(50, haystack.length() - needle.length());
         }
         int containedAt = haystack.indexOf(needle);
         if (containedAt >= 0) {
-            return 100 + containedAt;
+            return 100 + containedAt * 2 + Math.min(50, haystack.length() - needle.length());
         }
 
-        int needleIndex = 0;
-        int gapScore = 0;
-        int previousMatch = -1;
-        for (int index = 0; index < haystack.length() && needleIndex < needle.length(); index++) {
-            if (haystack.charAt(index) == needle.charAt(needleIndex)) {
-                if (previousMatch >= 0) {
-                    gapScore += index - previousMatch - 1;
-                }
-                previousMatch = index;
-                needleIndex++;
-            }
+        int maximumDistance;
+        if (needle.length() <= 2) {
+            maximumDistance = 0;
+        } else if (needle.length() <= 4) {
+            maximumDistance = 1;
+        } else if (needle.length() <= 7) {
+            maximumDistance = 2;
+        } else {
+            maximumDistance = 3;
         }
-        if (needleIndex == needle.length()) {
-            return 200 + gapScore;
+        if (maximumDistance == 0 || Math.abs(haystack.length() - needle.length()) > maximumDistance) {
+            return NO_FUZZY_MATCH;
         }
-        return 1_000 + levenshteinDistance(haystack, needle);
+        int distance = levenshteinDistance(haystack, needle);
+        return distance <= maximumDistance
+                ? 200 + distance * 20 + Math.abs(haystack.length() - needle.length())
+                : NO_FUZZY_MATCH;
     }
 
     private static int levenshteinDistance(String left, String right) {
@@ -1038,7 +1161,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         properties.setProperty("enabled", "true");
         properties.setProperty("token", "");
         properties.setProperty("mode", "global");
-        properties.setProperty("voice_mode", "static");
+        properties.setProperty("voice_mode", "random");
         properties.setProperty("default_speaker", DEFAULT_SPEAKER);
         properties.setProperty("effect", "");
         properties.setProperty("allow_player_effects", "true");
@@ -1114,9 +1237,12 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         }
 
         private int score(String needle) {
-            int best = Integer.MAX_VALUE;
+            int best = fuzzyScore(value, needle);
             for (String term : searchTerms) {
-                best = Math.min(best, fuzzyScore(term, needle));
+                int termScore = fuzzyScore(term, needle);
+                if (termScore != NO_FUZZY_MATCH) {
+                    best = Math.min(best, termScore + SEARCH_TERM_PENALTY);
+                }
             }
             return best;
         }
