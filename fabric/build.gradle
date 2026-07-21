@@ -1,0 +1,74 @@
+plugins {
+    id 'fabric-loom'
+}
+
+def profile = rootProject.versionProfile
+def mcVersion = rootProject.minecraftVersion
+
+def archiveName = "ntts-fabric-${mcVersion}"
+base {
+    archivesName = archiveName
+}
+
+sourceSets.main.java.srcDirs(
+        mcVersion == '1.19.2' ? 'src/minecraft_1_19/java' : 'src/minecraft_1_20_plus/java',
+        'src/player_server_pre_1_21_11/java'
+)
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'henkelmax.public'
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mcVersion}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${profile.getProperty('fabric_loader_version')}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${profile.getProperty('fabric_api_version')}"
+
+    implementation project(':common')
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${rootProject.voicechatApiVersion}"
+    modLocalRuntime "maven.modrinth:simple-voice-chat:${profile.getProperty('fabric_voicechat_artifact')}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(rootProject.javaVersion)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = rootProject.javaVersion
+}
+
+processResources {
+    def replacements = [
+            mod_version                 : rootProject.modVersion,
+            minecraft_requirement       : profile.getProperty('fabric_minecraft_requirement'),
+            java_version                : profile.getProperty('java_version'),
+            fabric_loader_version       : profile.getProperty('fabric_loader_version'),
+            voicechat_dependency_version: profile.getProperty('voicechat_dependency_version'),
+            pack_format                 : profile.getProperty('pack_format')
+    ]
+    inputs.properties replacements
+    filesMatching(['fabric.mod.json', 'pack.mcmeta']) {
+        expand replacements
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    from(rootProject.file('LICENSE')) {
+        rename { 'LICENSE_ntts' }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

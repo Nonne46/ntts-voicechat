@@ -1,0 +1,94 @@
+plugins {
+    id 'net.minecraftforge.gradle'
+}
+
+def profile = rootProject.versionProfile
+def mcVersion = rootProject.minecraftVersion
+def shouldReobfuscate = profile.getProperty('forge_reobf').toBoolean()
+def archiveName = "ntts-forge-${mcVersion}"
+
+base {
+    archivesName = archiveName
+}
+
+sourceSets.main.java.srcDirs(
+        profile.getProperty('forge_eventbus', '6') == '7' ? 'src/eventbus_7/java' : 'src/eventbus_6/java',
+        'src/player_server_pre_1_21_11/java'
+)
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(rootProject.javaVersion)
+}
+
+minecraft {
+    mappings channel: 'official', version: mcVersion
+    copyIdeResources = true
+    if (!shouldReobfuscate) {
+        reobf = false
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'henkelmax.public'
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${mcVersion}-${profile.getProperty('forge_version')}"
+
+    implementation project(':common')
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${rootProject.voicechatApiVersion}"
+    runtimeOnly fg.deobf("maven.modrinth:simple-voice-chat:${profile.getProperty('fabric_voicechat_artifact').replaceFirst('^fabric-', 'forge-')}")
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = rootProject.javaVersion
+}
+
+processResources {
+    def replacements = [
+            mod_version                 : rootProject.modVersion,
+            minecraft_version           : mcVersion,
+            pack_format                 : profile.getProperty('pack_format'),
+            forge_loader_requirement    : profile.getProperty('forge_loader_requirement'),
+            forge_requirement           : profile.getProperty('forge_requirement'),
+            voicechat_dependency_version: profile.getProperty('voicechat_dependency_version')
+    ]
+    inputs.properties replacements
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replacements
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    from(rootProject.file('LICENSE')) {
+        rename { 'LICENSE_ntts' }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes([
+                'Specification-Title'   : 'ntts',
+                'Specification-Vendor'  : 'nny',
+                'Specification-Version' : '1',
+                'Implementation-Title'  : archiveName,
+                'Implementation-Version': rootProject.modVersion,
+                'Implementation-Vendor' : 'nny'
+        ])
+    }
+}
+
+if (shouldReobfuscate) {
+    jar.finalizedBy('reobfJar')
+}

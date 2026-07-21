@@ -1,0 +1,95 @@
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle'
+}
+
+def profile = rootProject.versionProfile
+def mcVersion = rootProject.minecraftVersion
+def repositoryRoot = rootProject.file('..')
+def archiveName = "ntts-forge-${mcVersion}"
+
+base {
+    archivesName = archiveName
+}
+
+sourceSets.main.java.setSrcDirs([
+        new File(repositoryRoot, 'forge/src/main/java'),
+        new File(repositoryRoot, 'forge/src/eventbus_7/java'),
+        new File(repositoryRoot, 'forge/src/player_server_1_21_11_plus/java')
+])
+sourceSets.main.resources.setSrcDirs([])
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(rootProject.javaVersion)
+}
+
+minecraft {
+    if (mcVersion.startsWith('1.')) {
+        mappings channel: 'official', version: mcVersion
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+    maven {
+        name = 'henkelmax.public'
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${mcVersion}-${profile.getProperty('forge_version')}")
+
+    implementation project(':common')
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${rootProject.voicechatApiVersion}"
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.1'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = rootProject.javaVersion
+}
+
+processResources {
+    def replacements = [
+            mod_version                 : rootProject.modVersion,
+            minecraft_version           : mcVersion,
+            forge_loader_requirement    : profile.getProperty('forge_loader_requirement'),
+            forge_requirement           : profile.getProperty('forge_requirement'),
+            voicechat_dependency_version: profile.getProperty('voicechat_dependency_version'),
+            pack_format                 : profile.getProperty('pack_format')
+    ]
+    inputs.properties replacements
+    from(new File(repositoryRoot, 'forge/src/main/resources')) {
+        exclude 'pack.mcmeta'
+        filesMatching('META-INF/mods.toml') {
+            expand replacements
+        }
+    }
+    from(rootProject.file('resources')) {
+        filesMatching('pack.mcmeta') {
+            expand replacements
+        }
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    from(new File(repositoryRoot, 'LICENSE')) {
+        rename { 'LICENSE_ntts' }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes([
+                'Specification-Title'   : 'ntts',
+                'Specification-Vendor'  : 'nny',
+                'Specification-Version' : '1',
+                'Implementation-Title'  : archiveName,
+                'Implementation-Version': rootProject.modVersion,
+                'Implementation-Vendor' : 'nny'
+        ])
+    }
+}

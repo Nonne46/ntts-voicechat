@@ -1,0 +1,59 @@
+import java.util.Properties
+
+plugins {
+    id 'base'
+    id 'fabric-loom' version '1.10.5' apply false
+    id 'net.minecraftforge.gradle' version '6.0.54' apply false
+}
+
+def requestedMinecraftVersion = providers.gradleProperty('mcVersion').getOrElse(default_minecraft_version)
+def profileFile = file("versions/${requestedMinecraftVersion}.properties")
+if (!profileFile.isFile()) {
+    throw new GradleException("Unsupported Minecraft version '${requestedMinecraftVersion}'. Add versions/${requestedMinecraftVersion}.properties and list it in versions/supported.txt.")
+}
+
+def profile = new Properties()
+profileFile.withInputStream { profile.load(it) }
+
+def requiredProfileProperties = [
+        'minecraft_version',
+        'java_version',
+        'pack_format',
+        'fabric_loader_version',
+        'fabric_api_version',
+        'fabric_minecraft_requirement',
+        'fabric_voicechat_artifact',
+        'forge_version',
+        'forge_loader_requirement',
+        'forge_requirement',
+        'forge_reobf',
+        'voicechat_dependency_version'
+]
+requiredProfileProperties.each { propertyName ->
+    if (!profile.getProperty(propertyName)) {
+        throw new GradleException("Missing '${propertyName}' in ${profileFile}")
+    }
+}
+if (profile.getProperty('minecraft_version') != requestedMinecraftVersion) {
+    throw new GradleException("Profile ${profileFile} declares minecraft_version=${profile.getProperty('minecraft_version')}")
+}
+if (profile.getProperty('build_generation', 'doggyman') != 'doggyman') {
+    throw new GradleException("Minecraft ${requestedMinecraftVersion} belongs to a different build generation.")
+}
+
+ext.versionProfile = profile
+ext.minecraftVersion = profile.getProperty('minecraft_version')
+ext.javaVersion = profile.getProperty('java_version') as int
+ext.modVersion = providers.gradleProperty('modVersion').getOrElse(mod_version)
+ext.voicechatApiVersion = voicechat_api_version
+
+allprojects {
+    group = maven_group
+    version = rootProject.ext.modVersion
+}
+
+tasks.register('buildAll') {
+    group = 'build'
+    description = "Builds Fabric and Forge jars for Minecraft ${minecraftVersion}."
+    dependsOn ':fabric:build', ':forge:build'
+}

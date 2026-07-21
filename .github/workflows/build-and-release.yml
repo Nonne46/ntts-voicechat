@@ -1,0 +1,88 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: matrix
+        name: Read supported versions
+        shell: bash
+        run: echo "matrix=$(python3 scripts/version-matrix.py)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.minecraft }} (${{ matrix.generation }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Fabric and Forge
+        shell: bash
+        run: |
+          arguments=(all "${{ matrix.minecraft }}")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            arguments+=("${GITHUB_REF_NAME#v}")
+          fi
+          bash scripts/build.sh "${arguments[@]}"
+
+      - name: Upload jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: ntts-${{ matrix.minecraft }}
+          path: dist/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all jars
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ntts-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release create "$GITHUB_REF_NAME" artifacts/*.jar --verify-tag --generate-notes --repo "$GITHUB_REPOSITORY"

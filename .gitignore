@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# IDEs
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+out/
+bin/
+
+# Minecraft run directories
+run/
+run-*/
+**/run/
+**/run-*/
+
+# Generated release artifacts
+dist/
+
+# Python helper cache
+__pycache__/
+*.py[cod]
+
+# Forge/Fabric generated files
+eclipse/
+*.launch
+forge*changelog.txt

@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "description": "NTTS Plugin resources",
+    "pack_format": ${pack_format}
+  }
+}

@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+}
+
+sourceSets.main.java.setSrcDirs([rootProject.file('../common/src/main/java')])
+sourceSets.main.resources.setSrcDirs([])
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'henkelmax.public'
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
+}
+
+dependencies {
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${rootProject.voicechatApiVersion}"
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+    compileOnly 'org.slf4j:slf4j-api:1.7.36'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(rootProject.javaVersion)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}

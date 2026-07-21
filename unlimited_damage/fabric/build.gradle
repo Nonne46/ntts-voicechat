@@ -1,0 +1,84 @@
+plugins {
+    id 'net.fabricmc.fabric-loom'
+}
+
+def profile = rootProject.versionProfile
+def mcVersion = rootProject.minecraftVersion
+def repositoryRoot = rootProject.file('..')
+def archiveName = "ntts-fabric-${mcVersion}"
+
+base {
+    archivesName = archiveName
+}
+
+sourceSets.main.java.setSrcDirs([
+        new File(repositoryRoot, 'fabric/src/main/java'),
+        new File(repositoryRoot, 'fabric/src/minecraft_1_20_plus/java'),
+        new File(repositoryRoot, 'fabric/src/player_server_1_21_11_plus/java')
+])
+sourceSets.main.resources.setSrcDirs([])
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'henkelmax.public'
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mcVersion}"
+    if (mcVersion.startsWith('1.')) {
+        mappings loom.officialMojangMappings()
+    }
+    if (mcVersion.startsWith('1.')) {
+        modImplementation "net.fabricmc:fabric-loader:${profile.getProperty('fabric_loader_version')}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${profile.getProperty('fabric_api_version')}"
+    } else {
+        implementation "net.fabricmc:fabric-loader:${profile.getProperty('fabric_loader_version')}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${profile.getProperty('fabric_api_version')}"
+    }
+
+    implementation project(':common')
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:${rootProject.voicechatApiVersion}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(rootProject.javaVersion)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = rootProject.javaVersion
+}
+
+processResources {
+    def replacements = [
+            mod_version                 : rootProject.modVersion,
+            minecraft_requirement       : profile.getProperty('fabric_minecraft_requirement'),
+            java_version                : profile.getProperty('java_version'),
+            fabric_loader_version       : profile.getProperty('fabric_loader_version'),
+            voicechat_dependency_version: profile.getProperty('voicechat_dependency_version'),
+            pack_format                 : profile.getProperty('pack_format')
+    ]
+    inputs.properties replacements
+    from(new File(repositoryRoot, 'fabric/src/main/resources')) {
+        exclude 'pack.mcmeta'
+        filesMatching('fabric.mod.json') {
+            expand replacements
+        }
+    }
+    from(rootProject.file('resources')) {
+        filesMatching('pack.mcmeta') {
+            expand replacements
+        }
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    from(new File(repositoryRoot, 'LICENSE')) {
+        rename { 'LICENSE_ntts' }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

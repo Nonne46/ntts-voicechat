@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "ntts",
+  "version": "${mod_version}",
+  "name": "NTTS Plugin",
+  "description": "A Simple Voice Chat integration for the /N/TTS service.",
+  "authors": [
+    "nny"
+  ],
+  "contact": {
+    "homepage": "https://ntts.fdev.team/",
+    "sources": "https://github.com/Nonne46/ntts-voicechat"
+  },
+  "license": "MIT",
+  "icon": "assets/ntts/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.ntts.fabric.FabricNttsMod"
+    ],
+    "voicechat": [
+      "com.ntts.fabric.FabricNttsPlugin"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_requirement}",
+    "java": ">=${java_version}",
+    "voicechat": ">=${voicechat_dependency_version}"
+  }
+}

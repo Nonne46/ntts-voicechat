@@ -1,0 +1,34 @@
+modLoader="javafml"
+loaderVersion="${forge_loader_requirement}"
+license="MIT"
+
+[[mods]]
+modId="ntts"
+version="${mod_version}"
+displayName="NTTS Plugin"
+logoFile="icon.png"
+authors="nny"
+description='''
+A Simple Voice Chat integration for the /N/TTS service.
+'''
+
+[[dependencies.ntts]]
+modId="forge"
+mandatory=true
+versionRange="${forge_requirement}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ntts]]
+modId="minecraft"
+mandatory=true
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ntts]]
+modId="voicechat"
+mandatory=true
+versionRange="[${voicechat_dependency_version},)"
+ordering="AFTER"
+side="BOTH"

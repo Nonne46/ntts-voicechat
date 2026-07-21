@@ -1,0 +1,10 @@
+# CI and scripts build every non-comment entry.
+1.19.2
+1.20.1
+1.21.1
+1.21.4
+1.21.5
+1.21.8
+1.21.11
+26.1.2
+26.2

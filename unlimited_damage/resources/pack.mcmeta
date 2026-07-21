@@ -1,0 +1,10 @@
+{
+  "pack": {
+    "description": "NTTS Plugin resources",
+    "max_format": ${pack_format},
+    "min_format": [
+      ${pack_format},
+      1
+    ]
+  }
+}
