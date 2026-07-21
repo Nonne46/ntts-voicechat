@@ -111,7 +111,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
     private volatile VoicechatApi voicechatApi;
     private volatile VoicechatServerApi voicechatServerApi;
     private volatile NttsClient nttsClient = new NttsClient("", logger);
-    private volatile String ttsMode = "global";
+    private volatile String ttsMode = "local";
     private volatile String voiceMode = "random";
     private volatile String defaultSpeaker = DEFAULT_SPEAKER;
     private volatile String defaultEffect = "";
@@ -248,8 +248,8 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
                 entries.add(SuggestionEntry.fromValue("false"));
                 break;
             case "mode":
-                entries.add(SuggestionEntry.fromValue("global"));
                 entries.add(SuggestionEntry.fromValue("local"));
+                entries.add(SuggestionEntry.fromValue("global"));
                 break;
             case "voice_mode":
                 entries.add(SuggestionEntry.fromValue("random"));
@@ -590,7 +590,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
     protected final synchronized boolean reloadConfiguration() {
         try {
             Properties config = readConfig();
-            String configuredMode = config.getProperty("mode", "global").trim();
+            String configuredMode = config.getProperty("mode", "local").trim();
             if (!"global".equals(configuredMode) && !"local".equals(configuredMode)) {
                 throw new IllegalArgumentException("mode must be 'global' or 'local'");
             }
@@ -1160,7 +1160,7 @@ public abstract class NttsPluginCore implements VoicechatPlugin {
         Properties properties = new Properties();
         properties.setProperty("enabled", "true");
         properties.setProperty("token", "");
-        properties.setProperty("mode", "global");
+        properties.setProperty("mode", "local");
         properties.setProperty("voice_mode", "random");
         properties.setProperty("default_speaker", DEFAULT_SPEAKER);
         properties.setProperty("effect", "");

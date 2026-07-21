@@ -43,7 +43,7 @@ NTTS озвучивает сообщения игрового чата чере�
 ```properties
 enabled=true
 token=
-mode=global
+mode=local
 voice_mode=random
 default_speaker=narrator_d3
 effect=
@@ -51,8 +51,8 @@ allow_player_effects=true
 max_text_length=300
 ```
 
-- `mode=global` — речь слышат все игроки.
 - `mode=local` — речь слышна рядом с отправителем.
+- `mode=global` — речь слышат все игроки.
 - `voice_mode=static` — игроки без настройки получают голос по умолчанию.
 - `voice_mode=random` — игроки без настройки получают случайный голос до перезагрузки NTTS.
 

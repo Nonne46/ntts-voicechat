@@ -43,7 +43,7 @@ Tokens are available from the [/N/TTS Boosty page](https://boosty.to/ntts). Pref
 ```properties
 enabled=true
 token=
-mode=global
+mode=local
 voice_mode=random
 default_speaker=narrator_d3
 effect=
@@ -51,8 +51,8 @@ allow_player_effects=true
 max_text_length=300
 ```
 
-- `mode=global` — every player hears generated speech.
 - `mode=local` — speech is audible near the sender.
+- `mode=global` — every player hears generated speech.
 - `voice_mode=static` — give unconfigured players the default voice.
 - `voice_mode=random` — give unconfigured players a random voice until NTTS is reloaded.
 
